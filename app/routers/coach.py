@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -86,3 +87,8 @@ def delete_item(item_id: str, coach: User = Depends(require_coach), db: Session 
 def summary(days: int = 7, student: User = Depends(coach_student), db: Session = Depends(get_db)):
     return {"student": {"id": student.id, "name": student.name},
             "history": services.history(db, student.id, max(1, min(days, 90)))}
+
+@router.get("/students/{student_id}/day")
+def day_detail(day: date | None = None, student: User = Depends(coach_student), db: Session = Depends(get_db)):
+    """Everything the student logged on one day (items with times and photo ids, mood, gym)."""
+    return services.day_view(db, student.id, day or services.today())
