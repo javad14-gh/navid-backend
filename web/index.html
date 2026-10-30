@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نوید</title>
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#1c2430;--muted:#5b6678;--line:#dde2ea;--accent:#1f3864;--ok:#1d7a3a;--okbg:#d4f1dc}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#12161c;--card:#1b222b;--text:#e6eaf0;--muted:#9aa6b8;--line:#2e3846;--accent:#8fb0ff;--ok:#7fe0a0;--okbg:#1d4a2b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Vazirmatn,Tahoma,sans-serif;line-height:1.8;font-size:15px;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:560px;margin:0 auto;padding:14px 14px 40px}
+h1{font-size:19px;margin:4px 0;color:var(--accent)}h2{font-size:15px;margin:16px 0 8px;color:var(--accent)}
+button,select,input{font:inherit;color:var(--text)}
+button{padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer}
+button.pri{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.done{background:var(--okbg)}small,.note{color:var(--muted);font-size:12.5px}
+.pct{font-size:30px;font-weight:700;color:var(--accent)}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+img.th{width:56px;height:56px;object-fit:cover;border-radius:8px}
+.ed{display:flex;gap:6px}.ed input{margin:0 0 6px}.ed input:first-child{width:110px;flex:none}.ed button{margin-bottom:6px}
+a{color:var(--accent);cursor:pointer}
+</style>
+</head>
+<body><main id="app"></main>
+<script>
+var T=localStorage.getItem('nt'),U=null,app=document.getElementById('app');
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+async function api(p,o){o=o||{};var h={},b=o.body;if(T)h.Authorization='Bearer '+T;
+  if(b&&!(b instanceof FormData)){h['Content-Type']='application/json';b=JSON.stringify(b)}
+  var r=await fetch(p,{method:o.method||'GET',headers:h,body:b});
+  if(r.status===401&&p!=='/auth/login'){out();throw new Error('نشست تمام شد، دوباره وارد شو')}
+  if(r.status===204)return null;
+  var d=await r.json().catch(function(){return{}});
+  if(!r.ok)throw new Error(typeof d.detail==='string'?d.detail:'خطا ('+r.status+')');return d}
+function out(){T=null;U=null;localStorage.removeItem('nt');login()}
+async function go(f){try{await f()}catch(e){alert(e.message)}}
+function head(){return '<div class="row"><h1>'+esc(U.name)+'</h1><button data-a="out">خروج</button></div>'}
+function pct(a){return '<div class="card"><div class="row"><span>پایبندی امروز</span><span class="pct">'+a.percent+'٪</span></div><div class="bar"><i style="width:'+a.percent+'%"></i></div><div class="note">'+a.done+' از '+a.total+' مورد</div></div>'}
+function hist(h){return h.map(function(x){return '<div class="row"><span>'+x.day+(x.mood?' · '+esc(x.mood):'')+'</span><span>'+x.adherence.percent+'٪</span></div>'}).join('')}
+function photos(){document.querySelectorAll('img[data-ph]').forEach(function(im){fetch('/photos/'+im.dataset.ph,{headers:{Authorization:'Bearer '+T}}).then(function(r){return r.ok?r.blob():null}).then(function(b){if(b)im.src=URL.createObjectURL(b)})})}
+function shrink(file){return new Promise(function(res){var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var s=Math.min(1,1024/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(res,'image/jpeg',0.7)};im.src=r.result};r.readAsDataURL(file)})}
+
+function login(reg){
+  app.innerHTML='<h1>پیگیری روزانه</h1><div class="card"><input id="n" placeholder="نام" '+(reg?'':'hidden')+'><input id="e" type="email" placeholder="ایمیل" dir="ltr"><input id="p" type="password" placeholder="رمز عبور" dir="ltr"><input id="c" placeholder="کد دعوت مربی" dir="ltr" '+(reg?'':'hidden')+'><button class="pri" data-a="'+(reg?'reg':'login')+'">'+(reg?'ثبت‌نام مربی':'ورود')+'</button> <a data-a="'+(reg?'tl':'tr')+'">'+(reg?'ورود':'ثبت‌نام مربی')+'</a></div>'}
+async function enter(r){T=r.token;localStorage.setItem('nt',T);U=r.user;U.role==='coach'?coachList():student()}
+
+async function student(){
+  var d=await api('/student/today'),h=await api('/student/history?days=7');
+  app.innerHTML=head()+pct(d.adherence)+'<h2>وعده‌ها و مکمل‌ها</h2>'+d.items.filter(function(i){return i.kind!=='training'}).map(function(i){
+    return '<div class="card row'+(i.done?' done':'')+'"><div><b>'+esc(i.title)+'</b><br><small>'+esc(i.slot)+(i.done?' · ثبت شد '+i.done_at:'')+'</small></div><div>'
+    +(i.has_photo?'<img class="th" data-ph="'+i.check_id+'" alt=""> ':'')
+    +(i.done?'<button data-a="unchk" data-id="'+i.id+'">لغو</button>':'<button data-a="'+(i.kind==='meal'?'pic':'chk')+'" data-id="'+i.id+'">'+(i.kind==='meal'?'ثبت با عکس':'خوردم')+'</button>')+'</div></div>'}).join('')
+  +'<h2>تمرین‌ها</h2><div class="card">'+(d.items.filter(function(i){return i.kind==='training'}).map(function(i){return '<div>'+esc(i.slot)+': '+esc(i.title)+'</div>'}).join('')||'<small>برنامه‌ای ثبت نشده</small>')+'</div>'
+  +'<h2>باشگاه</h2><div class="card row"><span>'+(d.gym_in?'ورود '+d.gym_in:'ثبت نشده')+(d.gym_out?' · خروج '+d.gym_out:'')+'</span><span><button data-a="gin">ورود</button> <button data-a="gout">خروج</button></span></div>'
+  +'<h2>حال امروز</h2><div class="card"><select id="mood">'+['','عالی','خوب','معمولی','ضعف / خستگی','درد یا ناراحتی'].map(function(m){return '<option value="'+m+'"'+(m===d.mood?' selected':'')+'>'+(m||'انتخاب کن')+'</option>'}).join('')+'</select><input id="note" placeholder="توضیح کوتاه (اختیاری)" value="'+esc(d.mood_note)+'"></div>'
+  +'<h2>۷ روز اخیر</h2><div class="card">'+hist(h)+'</div>';photos()}
+
+async function coachList(){
+  var l=await api('/coach/students');
+  app.innerHTML=head()+'<h2>شاگردها</h2>'+(l.map(function(s){return '<div class="card row"><b>'+esc(s.name)+'</b><span>'+s.today.percent+'٪ <button data-a="open" data-id="'+s.id+'" data-n="'+esc(s.name)+'">باز کن</button></span></div>'}).join('')||'<div class="card note">هنوز شاگردی نداری.</div>')
+  +'<h2>شاگرد جدید</h2><div class="card"><input id="sn" placeholder="نام"><input id="se" type="email" placeholder="ایمیل" dir="ltr"><input id="sp" type="password" placeholder="رمز اولیه (حداقل ۸ حرف)" dir="ltr"><button class="pri" data-a="addst">ساخت حساب شاگرد</button></div>'}
+
+var CUR=null;
+async function coachStudent(id,name){
+  CUR={id:id,name:name};
+  var r=await Promise.all([api('/coach/students/'+id+'/plan'),api('/coach/students/'+id+'/summary?days=7')]),p=r[0].filter(function(i){return i.active});
+  var sec=function(k,t,b){return '<h2>'+t+'</h2><div class="card">'+p.filter(function(i){return i.kind===k}).map(function(i){
+    return '<div class="ed" data-id="'+i.id+'"><input data-f="slot" type="'+(k==='training'?'text':'time')+'" value="'+esc(i.slot)+'" placeholder="روز"><input data-f="title" value="'+esc(i.title)+'" placeholder="عنوان"><button data-a="del" data-id="'+i.id+'" aria-label="حذف">✕</button></div>'}).join('')+'<button data-a="add" data-k="'+k+'">'+b+'</button></div>'};
+  app.innerHTML=head()+'<div class="row"><h2>'+esc(name)+'</h2><button data-a="back">بازگشت</button></div>'+sec('meal','وعده‌های غذایی','+ وعده جدید')+sec('supplement','مکمل و دارو','+ مکمل جدید')+sec('training','برنامه تمرین','+ تمرین جدید')
+  +'<p class="note">تغییرها هنگام ترک هر فیلد ذخیره میشن.</p><h2>۷ روز اخیر</h2><div class="card">'+hist(r[1].history)+'</div>'}
+
+app.addEventListener('click',function(e){var b=e.target.closest('[data-a]');if(!b)return;var a=b.dataset.a,id=b.dataset.id;go(async function(){
+  var v=function(i){return document.getElementById(i).value};
+  if(a==='tr')login(true);else if(a==='tl')login();else if(a==='out')out();
+  else if(a==='login')enter(await api('/auth/login',{method:'POST',body:{email:v('e'),password:v('p')}}));
+  else if(a==='reg')enter(await api('/auth/register-coach',{method:'POST',body:{name:v('n'),email:v('e'),password:v('p'),invite_code:v('c')}}));
+  else if(a==='chk'){await api('/student/today/checks/'+id,{method:'PUT'});student()}
+  else if(a==='unchk'){await api('/student/today/checks/'+id,{method:'DELETE'});student()}
+  else if(a==='pic'){var f=document.createElement('input');f.type='file';f.accept='image/*';f.setAttribute('capture','environment');
+    f.onchange=function(){if(!f.files[0])return;go(async function(){var fd=new FormData();fd.append('photo',await shrink(f.files[0]),'meal.jpg');await api('/student/today/checks/'+id,{method:'PUT',body:fd});student()})};f.click()}
+  else if(a==='gin'||a==='gout'){await api('/student/today/gym',{method:'POST',body:{action:a.slice(1)}});student()}
+  else if(a==='addst'){await api('/coach/students',{method:'POST',body:{name:v('sn'),email:v('se'),password:v('sp')}});coachList()}
+  else if(a==='open')coachStudent(id,b.dataset.n);
+  else if(a==='back')coachList();
+  else if(a==='add'){var k=b.dataset.k;await api('/coach/students/'+CUR.id+'/plan/items',{method:'POST',body:{kind:k,slot:k==='training'?'':'12:00',title:''}});coachStudent(CUR.id,CUR.name)}
+  else if(a==='del'){await api('/coach/plan/items/'+id,{method:'DELETE'});coachStudent(CUR.id,CUR.name)}})});
+app.addEventListener('change',function(e){var t=e.target;go(async function(){
+  if(t.id==='mood'||t.id==='note')await api('/student/today/mood',{method:'PUT',body:{mood:document.getElementById('mood').value,note:document.getElementById('note').value}});
+  else if(t.dataset.f){var row=t.closest('.ed'),o={};o[t.dataset.f]=t.value;await api('/coach/plan/items/'+row.dataset.id,{method:'PATCH',body:o})}})});
+(async function(){if(!T)return login();try{U=await api('/me');U.role==='coach'?coachList():student()}catch(e){login()}})();
+</script></body></html>
